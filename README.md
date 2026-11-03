@@ -1,77 +1,62 @@
-# Customer Churn Analytics
+# Customer Churn Analytics Platform
 
-A beginner-friendly college project that loads a Netflix customer churn dataset
-into MongoDB and visualises it through a Streamlit dashboard.
-
----
-
-## 1. Prerequisites
-
-- Python 3.9 or higher
-- MongoDB Community Edition running locally on port 27017
-
-### Start MongoDB
-
-**Windows (if installed as a service)**
-```
-net start MongoDB
-```
-
-**Windows (manual)**
-```
-"C:\Program Files\MongoDB\Server\<version>\bin\mongod.exe" --dbpath "C:\data\db"
-```
-
-**macOS / Linux**
-```
-mongod --dbpath /data/db
-```
+An enterprise-grade subscription analytics dashboard and data management pipeline engineered with Python, MongoDB, and Streamlit. The platform provides real-time visibility into customer retention, churn drivers, revenue leakage, and cohort behaviors across multi-tier subscription plans.
 
 ---
 
-## 2. Install Dependencies
+## Architecture Overview
 
-```
-pip install -r requirements.txt
-```
+The system is built on a decoupled architecture separating data ingestion, database persistence, analytical aggregation, and presentation layers:
 
-`requirements.txt` installs: `pymongo`, `pandas`, `streamlit`, `plotly`.
-
----
-
-## 3. Run Order
-
-**Step 1 — load the data (run only once, or whenever you want a fresh start)**
-```
-python load_data.py
-```
-
-Expected output:
-```
-Rows read: 5000  |  After dropping duplicates: 5000
-Old 'customers' collection dropped (if it existed).
-Indexes created: customer_id (unique), subscription.type, profile.region, churned
-Documents saved : 5000
-Documents with flags: <n>
-Done. Run  streamlit run app.py  to open the dashboard.
-```
-
-**Step 2 — start the dashboard**
-```
-streamlit run app.py
-```
-
-Open your browser at `http://localhost:8501`.
+- **Storage Engine**: MongoDB Community Server for flexible, schema-free document persistence and nested attribute modeling.
+- **Data Ingestion**: Automated ETL pipeline (`load_data.py`) performing deduplication, schema normalization, and data validation rules.
+- **Aggregation Framework**: Native MongoDB pipelines for server-side analytical processing, minimizing memory footprint and network overhead.
+- **Application Layer**: Streamlit dashboard with real-time reactive filters, interactive Plotly visualizations, and full CRUD transactional support.
 
 ---
 
-## 4. MongoDB Document Structure
+## Tech Stack
 
-Each row in the CSV is stored as one nested document:
+| Component | Technology | Role |
+|-----------|------------|------|
+| Language | Python 3.9+ | Core application runtime and ETL processing |
+| Database | MongoDB 6.0+ | Document store and aggregation engine |
+| Driver | PyMongo | Native Python driver for MongoDB operations |
+| Data Processing | Pandas | CSV batch ingestion and preprocessing |
+| Web Framework | Streamlit | Reactive web dashboard and UI state management |
+| Visualizations | Plotly | Interactive GPU-accelerated charting engine |
+
+---
+
+## Key Features
+
+### 1. Real-Time Analytical Metrics
+- Real-time KPI cards tracking total customer base, churn count, churn rate percentage, average revenue per user (ARPU), and monthly revenue loss due to churn.
+- Cohort analysis broken down by subscription tiers, geographic regions, device categories, and customer tenure.
+
+### 2. Full CRUD Operations
+- **Create**: Register new customers with auto-generated UUIDs, subscription tier mapping, and dynamic pricing assignment.
+- **Read**: Server-side filtered querying with pagination controls (100, 200, 500, or full dataset views).
+- **Update**: Modify customer subscription plans, churn status, device preferences, and usage metrics with real-time database synchronisation via `$set`.
+- **Delete**: Secure customer deletion with mandatory confirmation safeguards.
+
+### 3. Server-Side Aggregation Pipelines
+- Analytical processing executed directly on the MongoDB server via multi-stage aggregation pipelines (`$match`, `$group`, `$project`, `$bucket`, `$sort`, `$limit`).
+- Minimizes application memory usage and accelerates dashboard response times.
+
+### 4. Automated Data Quality Flagging
+- Ingestion-level anomaly detection auditing daily watch metrics.
+- Flags physically impossible metrics (e.g. daily watch hours exceeding 24 hours) into a dedicated audit array for manual compliance review without data loss.
+
+---
+
+## Data Model and Schema Design
+
+Data is modeled using nested document architecture, categorizing customer properties into logical sub-documents:
 
 ```json
 {
-  "customer_id": "a9b75100-...",
+  "customer_id": "a9b75100-82a8-427a-a208-72f24052884a",
   "profile": {
     "age": 51,
     "gender": "Other",
@@ -95,171 +80,102 @@ Each row in the CSV is stored as one nested document:
 }
 ```
 
-> [!NOTE]
-> `churned` is stored as a boolean (`true` / `false`), not an integer.
-> `flags` contains `"invalid_daily_watch_time"` when `avg_watch_time_per_day > 24`.
+### Indexing Strategy
+
+To support high-throughput analytical queries and fast filtering, dedicated B-tree indexes are configured:
+
+| Index Target | Type | Optimization Objective |
+|--------------|------|------------------------|
+| `customer_id` | Unique | Enforces record identity and prevents duplicate entries |
+| `subscription.type` | Single Field | Accelerates plan-based aggregations and sidebar filters |
+| `profile.region` | Single Field | Optimizes geographic grouping and cohort segmentation |
+| `churned` | Single Field | Speeds up churn-specific filtering and KPI calculations |
 
 ---
 
-## 5. Indexes Created
+## Analytics Pipeline Specifications
 
-| Index field            | Type   | Purpose                                  |
-|------------------------|--------|------------------------------------------|
-| `customer_id`          | Unique | Prevents duplicate inserts               |
-| `subscription.type`    | Single | Fast filter by plan (Basic/Standard/...) |
-| `profile.region`       | Single | Fast filter by geographic region         |
-| `churned`              | Single | Fast split between churned and active     |
+The analytics engine leverages dedicated MongoDB pipelines:
 
----
-
-## 6. Aggregation Pipelines
-
-### Pipeline 1 — Churn Rate by Subscription Type
-Stages: `$group`, `$project` (`$multiply`, `$divide`), `$sort`
-
-- `$group` on `subscription.type`: counts total and churned customers per plan.
-- `$project`: computes `churn_rate = (churned_count / total) * 100`.
-- `$sort`: orders results by churn rate descending.
+1. **Churn Rate by Plan**: Groups records by `subscription.type`, derives total vs churned counts, projects the percentage via `$divide` and `$multiply`, and sorts descending.
+2. **Geographic Churn Distribution**: Groups by `profile.region` to identify regions with elevated subscriber attrition.
+3. **Engagement Recency Analysis**: Uses `$bucket` across `usage.last_login_days` (boundaries: 0 to 60+ days) to map attrition against inactivity intervals.
+4. **Demographic Age Grouping**: Employs `$bucket` across `profile.age` (brackets: 18-24, 25-34, 35-44, 45-54, 55-70) to correlate user age with retention likelihood.
+5. **Content Affinity of Churned Users**: Filters with `$match: { churned: true }`, groups by `usage.favorite_genre`, and sorts to return the top 8 churned genres.
+6. **Revenue Leakage Comparison**: Grouped comparative bar charts contrasting total contract revenue against lost monthly revenue per subscription tier.
+7. **Device and Payment Risk Profiling**: Evaluates churn rates across hardware form factors and payment gateways.
 
 ---
 
-### Pipeline 2 — Churn Rate by Region
-Stages: `$group`, `$project` (`$multiply`, `$divide`), `$sort`
-
-- `$group` on `profile.region`: counts total and churned customers per region.
-- `$project`: computes `churn_rate`.
-- `$sort`: orders by churn rate descending.
-
----
-
-### Pipeline 3 — Churn Rate by Last Login Recency
-Stages: `$bucket`, `$project` (`$multiply`, `$divide`)
-
-- `$bucket` on `usage.last_login_days` with boundaries `[0, 8, 15, 22, 30, 38, 46, 54, 61]`.
-  Each bucket counts total and churned customers who last logged in within that window.
-- `$project`: computes `churn_rate` for each recency bucket.
-
----
-
-### Pipeline 4 — Churn Rate by Age Group
-Stages: `$bucket`, `$project` (`$multiply`, `$divide`)
-
-- `$bucket` on `profile.age` with boundaries `[18, 25, 35, 45, 55, 71]`.
-- `$project`: computes `churn_rate` per age band.
-
----
-
-### Pipeline 5 — Top Favorite Genres Among Churned Customers
-Stages: `$match`, `$group`, `$sort`, `$limit`
-
-- `$match`: keeps only documents where `churned` is `true`.
-- `$group` on `usage.favorite_genre`: counts occurrences.
-- `$sort`: most popular genre first.
-- `$limit 8`: keeps only the top 8 genres.
-
----
-
-## 7. Project File Structure
+## Project Structure
 
 ```
-arnav-project/
-|-- netflix_customer_churn.csv   # Source dataset (5000 rows)
-|-- load_data.py                 # One-time script: CSV -> MongoDB
+netflix-customer-churn-analytics/
+|-- netflix_customer_churn.csv   # Source dataset (5,000 customer records)
+|-- requirements.txt             # Project runtime dependencies
+|-- .gitignore                   # Git exclusion rules
+|-- load_data.py                 # ETL ingestion and index creation script
+|-- db.py                        # Centralized MongoDB client connection provider
+|-- crud.py                      # Data mutation services (Insert, Update, Delete)
+|-- queries.py                   # Aggregation pipeline definitions and queries
+|-- ui_helpers.py                # Reusable chart components and CSS injection
 |-- app.py                       # Main Streamlit dashboard application
-|-- db.py                        # MongoDB connection and database initialization
-|-- crud.py                      # Create, Update, Delete customer functions
-|-- queries.py                   # Aggregation pipelines and data retrieval
-|-- ui_helpers.py                # Visual styling, cards, and Plotly chart builders
-|-- requirements.txt             # Python dependencies
 |-- .streamlit/
-|   `-- config.toml              # Dark theme, red accent
-`-- README.md                    # Project documentation and viva guide
+|   `-- config.toml              # Theme configurations (dark mode with red accent)
+`-- README.md                    # System architecture and technical documentation
 ```
 
 ---
 
-## 8. CRUD Operations Overview
+## Getting Started
 
-The application supports complete CRUD functionality with MongoDB:
+### Prerequisites
 
-| Operation | PyMongo Method | Description |
-|-----------|----------------|-------------|
-| **Create** | `collection.insert_one(new_doc)` | Generates a UUID for `customer_id` and inserts a new nested customer document. |
-| **Read** | `collection.find(query, projection)` and `collection.aggregate(pipeline)` | Retrieves filtered customer records and computes analytics metrics. |
-| **Update** | `collection.update_one({"customer_id": id}, {"$set": update_fields})` | Updates subscription plan, monthly fee, status, device, and usage stats. |
-| **Delete** | `collection.delete_one({"customer_id": id})` | Permanently deletes a customer by ID after user confirmation. |
+- Python 3.9 or higher
+- MongoDB Community Server running locally on `localhost:27017`
 
----
+### Installation
 
-## 9. Viva Questions and Answers
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/<YOUR-USERNAME>/netflix-customer-churn-analytics.git
+   cd netflix-customer-churn-analytics
+   ```
 
-**Q1. What is MongoDB and why did you use it instead of a plain CSV file?**
-MongoDB is a NoSQL document database that stores data as JSON-like documents.
-It was used because it supports nested documents (profile, subscription, usage),
-efficient querying with indexes, and powerful aggregation pipelines that let us
-compute statistics directly inside the database without loading all data into Python.
+2. Install the required Python packages:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
----
+3. Ensure MongoDB service is running:
+   ```bash
+   # Windows (Service)
+   net start MongoDB
 
-**Q2. What is the difference between a flat document and a nested document?**
-A flat document stores every field at the top level (like a spreadsheet row).
-A nested document groups related fields into sub-objects, for example all profile
-fields (age, gender, region) live under a single `profile` key. This makes the
-schema more organised and closer to how the data is conceptually structured.
+   # Linux / macOS
+   sudo systemctl start mongod
+   ```
 
----
+### Data Ingestion
 
-**Q3. What does an aggregation pipeline do?**
-An aggregation pipeline is a sequence of stages that transform documents step by
-step. Each stage takes the output of the previous one as its input. Common stages
-are `$match` (filter), `$group` (aggregate values), `$project` (compute or rename
-fields), `$sort`, `$limit`, and `$bucket` (histogram-style grouping).
+Execute the data loader to clean the dataset, construct nested document structures, populate MongoDB, and build database indexes:
 
----
+```bash
+python load_data.py
+```
 
-**Q4. What is `$bucket` and how is it used in this project?**
-`$bucket` divides documents into ranges (buckets) based on a numeric field.
-In this project it is used on `last_login_days` and `profile.age` to create
-recency windows and age bands, similar to a histogram. You define the bucket
-boundaries as an array; each value becomes the start of a new bucket.
+### Launching the Dashboard
 
----
+Start the Streamlit application:
 
-**Q5. Why did you create indexes in MongoDB?**
-Indexes work like the index at the back of a book: instead of scanning every
-document, MongoDB can jump directly to matching ones. Without indexes, every
-query does a full collection scan (slow for 5000+ documents). The project
-creates indexes on `customer_id`, `subscription.type`, `profile.region`, and
-`churned` because these fields are used most often in filters.
+```bash
+streamlit run app.py
+```
+
+Access the dashboard at `http://localhost:8501`.
 
 ---
 
-**Q6. What is the purpose of the `flags` field?**
-The `flags` array stores data quality problems found during data loading.
-Currently, if `avg_watch_time_per_day > 24` (impossible because a day only has
-24 hours), the string `"invalid_daily_watch_time"` is added to the array.
-This lets analysts quickly find and review bad records without deleting them.
+## License
 
----
-
-**Q7. How does the `$cond` operator work in the `$group` stage?**
-`$cond` is MongoDB's if-then-else operator. In this project it is written as
-`{ "$cond": ["$churned", 1, 0] }`, which means: if the `churned` field is
-`true`, return 1; otherwise return 0. Summing these 1s and 0s across the group
-gives the count of churned customers.
-
----
-
-**Q8. What does `insert_many` do and why is it better than inserting one document at a time?**
-`insert_many` sends the entire list of documents to MongoDB in a single network
-request, while calling `insert_one` in a loop sends one request per document.
-For 5000 rows, a single `insert_many` is dramatically faster because it avoids
-the overhead of 5000 separate round-trips between Python and the database.
-
----
-
-**Q9. How does the Update operation work in PyMongo?**
-The Update operation uses `collection.update_one(filter, {"$set": update_fields})`.
-The filter finds the document matching the given `customer_id`. The `$set` operator
-updates only the specified fields (e.g. plan, fee, churn status, device, watch hours)
-without overwriting or deleting other existing fields in the document.
+This project is licensed under the MIT License.

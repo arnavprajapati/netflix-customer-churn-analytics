@@ -1,4 +1,5 @@
 import importlib
+import pandas as pd
 import streamlit as st
 import crud
 import queries
@@ -56,11 +57,16 @@ def show_metrics(collection, query):
         collection, query
     )
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Total Customers", f"{total:,}")
-    c2.metric("Churned Customers", f"{churned:,}")
-    c3.metric("Churn Rate", f"{churn_rate}%")
-    c4.metric("Avg Monthly Fee", f"${avg_fee}")
-    c5.metric("Monthly Revenue Lost", f"${revenue_lost:,.2f}")
+    with c1:
+        ui_helpers.metric_card("Total Customers", f"{total:,}")
+    with c2:
+        ui_helpers.metric_card("Churned Customers", f"{churned:,}")
+    with c3:
+        ui_helpers.metric_card("Churn Rate", f"{churn_rate}%")
+    with c4:
+        ui_helpers.metric_card("Avg Monthly Fee", f"${avg_fee}")
+    with c5:
+        ui_helpers.metric_card("Monthly Revenue Lost", f"${revenue_lost:,.2f}")
 
 def show_customer_table(collection, query):
     """Display a paginated, sortable customer table fetched from MongoDB."""
@@ -94,7 +100,8 @@ def show_customer_table(collection, query):
     st.caption(f"Showing {showing:,} of {total_matched:,} customers.")
 
     if rows:
-        st.dataframe(rows, use_container_width=True)
+        df = pd.DataFrame(rows)
+        ui_helpers.render_table(df, max_height="380px")
     else:
         st.info("No customers match the selected filters.")
 
@@ -110,7 +117,7 @@ def show_crud_forms(collection):
                 age = st.number_input("Age", min_value=18, max_value=100, value=28)
                 gender = st.selectbox("Gender", ["Male", "Female", "Other"])
                 region = st.selectbox("Region", ["North America", "Europe", "Asia",
-                                                "Africa", "South America", "Australia"])
+                                                 "Africa", "South America", "Australia"])
                 plan = st.selectbox("Plan", ["Basic", "Standard", "Premium"])
             with col_b:
                 device = st.selectbox("Device", ["TV", "Mobile", "Tablet", "Laptop"])
@@ -332,7 +339,8 @@ def show_data_quality(collection):
 
     if rows:
         st.warning(f"{len(rows)} record(s) have data quality issues and may need review.")
-        st.dataframe(rows, use_container_width=True, height=280)
+        df = pd.DataFrame(rows)
+        ui_helpers.render_table(df, max_height="280px")
     else:
         st.success("No data quality issues found in the dataset.")
 

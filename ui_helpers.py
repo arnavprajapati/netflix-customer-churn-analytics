@@ -38,25 +38,6 @@ def setup_page():
             max-width: 1400px;
         }
 
-        [data-testid="metric-container"] {
-            background: linear-gradient(135deg, #1c1c1c 0%, #242424 100%);
-            border: 1px solid #E50914;
-            border-radius: 10px;
-            padding: 1.1rem 1.3rem;
-            box-shadow: 0 4px 15px rgba(229, 9, 20, 0.15);
-        }
-        [data-testid="metric-container"] label {
-            color: #aaaaaa;
-            font-size: 0.78rem;
-            text-transform: uppercase;
-            letter-spacing: 0.07em;
-        }
-        [data-testid="metric-container"] [data-testid="stMetricValue"] {
-            color: #ffffff;
-            font-size: 1.55rem;
-            font-weight: 700;
-        }
-
         .section-pill {
             display: inline-block;
             background: #E50914;
@@ -81,6 +62,40 @@ def section_pill(label):
     st.markdown(
         f'<div class="section-pill">{label}</div>', unsafe_allow_html=True
     )
+
+def metric_card(label, value):
+    """Render a styled metric card using pure HTML to avoid Vite dynamic chunk loading."""
+    st.markdown(
+        f"""
+        <div style="background: linear-gradient(135deg, #1c1c1c 0%, #242424 100%);
+                    border: 1px solid #E50914; border-radius: 10px; padding: 1.1rem 1.2rem;
+                    box-shadow: 0 4px 15px rgba(229, 9, 20, 0.15); margin-bottom: 0.5rem;">
+            <div style="color: #aaaaaa; font-size: 0.78rem; text-transform: uppercase;
+                        letter-spacing: 0.07em; font-weight: 600;">
+                {label}
+            </div>
+            <div style="color: #ffffff; font-size: 1.55rem; font-weight: 700; margin-top: 0.3rem;">
+                {value}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+def render_table(df, max_height="380px"):
+    """Render a responsive, scrollable HTML table that does not rely on Vite dynamic chunk loading."""
+    html = f"""
+    <div style="max-height: {max_height}; overflow-y: auto; overflow-x: auto; border: 1px solid #2a2a2a; border-radius: 8px;">
+        <style>
+            .custom-table {{ width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 0.88rem; }}
+            .custom-table th {{ background-color: #1f1f1f; color: #E50914; padding: 10px 14px; text-align: left; position: sticky; top: 0; border-bottom: 2px solid #E50914; z-index: 1; }}
+            .custom-table td {{ padding: 8px 14px; border-bottom: 1px solid #262626; color: #dddddd; white-space: nowrap; }}
+            .custom-table tr:hover {{ background-color: #222222; }}
+        </style>
+        {df.to_html(classes="custom-table", index=False, escape=False)}
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
 
 def make_bar(data, x, y, x_label, y_label):
     """Return a dark-themed Plotly bar chart with a single red color."""

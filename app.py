@@ -5,7 +5,6 @@ import queries
 import ui_helpers
 from db import get_collection
 
-# Ensure crud changes are immediately reloaded by Streamlit
 importlib.reload(crud)
 
 ui_helpers.setup_page()
@@ -14,9 +13,17 @@ def build_sidebar(collection):
     """Render sidebar filter widgets and return the MongoDB query dict."""
     st.sidebar.markdown("## Filters")
 
-    sub_types = ["All"] + sorted(collection.distinct("subscription.type"))
-    regions = ["All"] + sorted(collection.distinct("profile.region"))
-    devices = ["All"] + sorted(collection.distinct("usage.device"))
+    try:
+        sub_types = ["All"] + sorted(collection.distinct("subscription.type"))
+        regions = ["All"] + sorted(collection.distinct("profile.region"))
+        devices = ["All"] + sorted(collection.distinct("usage.device"))
+    except Exception as err:
+        st.error(
+            "Could not connect to MongoDB. "
+            "Please verify that MONGO_URI is added in Streamlit Cloud Secrets "
+            "and MongoDB Atlas Network Access allows 0.0.0.0/0 (IP access from anywhere)."
+        )
+        st.stop()
 
     selected_sub = st.sidebar.selectbox("Subscription Plan", sub_types)
     selected_reg = st.sidebar.selectbox("Region", regions)
@@ -103,7 +110,7 @@ def show_crud_forms(collection):
                 age = st.number_input("Age", min_value=18, max_value=100, value=28)
                 gender = st.selectbox("Gender", ["Male", "Female", "Other"])
                 region = st.selectbox("Region", ["North America", "Europe", "Asia",
-                                                 "Africa", "South America", "Australia"])
+                                                "Africa", "South America", "Australia"])
                 plan = st.selectbox("Plan", ["Basic", "Standard", "Premium"])
             with col_b:
                 device = st.selectbox("Device", ["TV", "Mobile", "Tablet", "Laptop"])
